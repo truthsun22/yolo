@@ -41,10 +41,9 @@ def get_password_hash(password: str) -> str:
 
 def get_user(username: str) -> Optional[UserInDB]:
     if username == settings.ADMIN_USERNAME:
-        hashed_pwd = get_password_hash(settings.ADMIN_PASSWORD)
         return UserInDB(
             username=settings.ADMIN_USERNAME,
-            hashed_password=hashed_pwd,
+            hashed_password="",
             disabled=False
         )
     return None
@@ -54,7 +53,7 @@ def authenticate_user(username: str, password: str) -> Optional[UserInDB]:
     user = get_user(username)
     if not user:
         return None
-    if not verify_password(password, user.hashed_password):
+    if password != settings.ADMIN_PASSWORD:
         return None
     return user
 
