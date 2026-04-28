@@ -173,12 +173,21 @@ class VideoDetector:
             if self.model is None:
                 return []
             
-            results = self.model(
-                frame,
-                conf=self.confidence_threshold,
-                iou=settings.MODEL_IOU_THRESHOLD,
-                verbose=False
-            )
+            if self.task.task_type == TaskType.PEDESTRIAN_TRACKING:
+                results = self.model.track(
+                    frame,
+                    conf=self.confidence_threshold,
+                    iou=settings.MODEL_IOU_THRESHOLD,
+                    verbose=False,
+                    persist=True
+                )
+            else:
+                results = self.model(
+                    frame,
+                    conf=self.confidence_threshold,
+                    iou=settings.MODEL_IOU_THRESHOLD,
+                    verbose=False
+                )
             
             return results
             

@@ -23,8 +23,11 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "123456"
     
     # YOLO模型配置
-    DEFAULT_MODEL: str = "yolov8n.pt"
-    AVAILABLE_MODELS: List[str] = ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt", "yolov8x.pt"]
+    DEFAULT_MODEL: str = "yolo11n.pt"
+    AVAILABLE_MODELS: List[str] = [
+        "yolo11n.pt", "yolo11s.pt", "yolo11m.pt", "yolo11l.pt", "yolo11x.pt",
+        "yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt", "yolov8x.pt"
+    ]
     MODEL_CONFIDENCE_THRESHOLD: float = 0.5
     MODEL_IOU_THRESHOLD: float = 0.5
     

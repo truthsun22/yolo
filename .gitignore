@@ -190,3 +190,10 @@ apps/models_provider/impl/tencent_model_provider/model/stt.py
 tmp/
 config.yml
 .SANDBOX_BANNED_HOSTS
+
+# YOLO 模型文件 (大文件，不需要版本控制，会自动下载)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mlmodel

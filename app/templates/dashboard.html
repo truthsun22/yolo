@@ -525,11 +525,20 @@
                         <div class="form-group">
                             <label for="modelName">检测模型</label>
                             <select id="modelName" name="model_name">
-                                <option value="yolov8n.pt">YOLOv8n (快速)</option>
-                                <option value="yolov8s.pt">YOLOv8s (均衡)</option>
-                                <option value="yolov8m.pt">YOLOv8m (标准)</option>
-                                <option value="yolov8l.pt">YOLOv8l (精准)</option>
-                                <option value="yolov8x.pt">YOLOv8x (最精准)</option>
+                                <optgroup label="YOLO11 (最新)">
+                                    <option value="yolo11n.pt" selected>YOLO11n (快速)</option>
+                                    <option value="yolo11s.pt">YOLO11s (均衡)</option>
+                                    <option value="yolo11m.pt">YOLO11m (标准)</option>
+                                    <option value="yolo11l.pt">YOLO11l (精准)</option>
+                                    <option value="yolo11x.pt">YOLO11x (最精准)</option>
+                                </optgroup>
+                                <optgroup label="YOLOv8 (旧版)">
+                                    <option value="yolov8n.pt">YOLOv8n (快速)</option>
+                                    <option value="yolov8s.pt">YOLOv8s (均衡)</option>
+                                    <option value="yolov8m.pt">YOLOv8m (标准)</option>
+                                    <option value="yolov8l.pt">YOLOv8l (精准)</option>
+                                    <option value="yolov8x.pt">YOLOv8x (最精准)</option>
+                                </optgroup>
                             </select>
                         </div>
                         
@@ -621,11 +630,20 @@
                     <div class="form-group">
                         <label>默认模型</label>
                         <select id="defaultModel">
-                            <option value="yolov8n.pt">YOLOv8n (快速)</option>
-                            <option value="yolov8s.pt">YOLOv8s (均衡)</option>
-                            <option value="yolov8m.pt">YOLOv8m (标准)</option>
-                            <option value="yolov8l.pt">YOLOv8l (精准)</option>
-                            <option value="yolov8x.pt">YOLOv8x (最精准)</option>
+                            <optgroup label="YOLO11 (最新)">
+                                <option value="yolo11n.pt" selected>YOLO11n (快速)</option>
+                                <option value="yolo11s.pt">YOLO11s (均衡)</option>
+                                <option value="yolo11m.pt">YOLO11m (标准)</option>
+                                <option value="yolo11l.pt">YOLO11l (精准)</option>
+                                <option value="yolo11x.pt">YOLO11x (最精准)</option>
+                            </optgroup>
+                            <optgroup label="YOLOv8 (旧版)">
+                                <option value="yolov8n.pt">YOLOv8n (快速)</option>
+                                <option value="yolov8s.pt">YOLOv8s (均衡)</option>
+                                <option value="yolov8m.pt">YOLOv8m (标准)</option>
+                                <option value="yolov8l.pt">YOLOv8l (精准)</option>
+                                <option value="yolov8x.pt">YOLOv8x (最精准)</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="form-group">
