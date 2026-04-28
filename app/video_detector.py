@@ -302,10 +302,10 @@ class VideoDetector:
             2
         )
         
-        task_type_text = "追踪" if self.task.task_type == TaskType.PEDESTRIAN_TRACKING else "检测"
+        task_type_text = "Tracking" if self.task.task_type == TaskType.PEDESTRIAN_TRACKING else "Detection"
         cv2.putText(
             annotated_frame,
-            f"任务类型: {task_type_text}",
+            f"Task Type: {task_type_text}",
             (10, 60),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
