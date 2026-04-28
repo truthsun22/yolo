@@ -44,9 +44,10 @@ class VideoDetector:
         self._should_stop = False
         
         self.video_writer: Optional[cv2.VideoWriter] = None
-        self.output_video_path = self._get_output_video_path()
+        self.output_video_path: str = ""
         self.output_fps: float = 30.0
         self.output_frame_size: Optional[Tuple[int, int]] = None
+        self._used_codec: str = ""
         
         self.screenshot_count = 0
         self.event_screenshots: List[Dict[str, Any]] = []
@@ -169,8 +170,13 @@ class VideoDetector:
     def _should_skip_frame(self, frame_count: int) -> bool:
         return frame_count % (self.frame_skip + 1) != 0
     
-    def _get_output_video_path(self) -> str:
-        return os.path.join(settings.VIDEO_OUTPUT_DIR, f"{self.task_id}_annotated.mp4")
+    def _get_output_video_path(self, codec_fourcc: str) -> str:
+        extension = '.mp4'
+        if codec_fourcc == 'MJPG':
+            extension = '.avi'
+        elif codec_fourcc == 'XVID':
+            extension = '.avi'
+        return os.path.join(settings.VIDEO_OUTPUT_DIR, f"{self.task_id}_annotated{extension}")
     
     def _get_screenshot_path(self, frame_number: int, track_id: Optional[int] = None) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -188,15 +194,40 @@ class VideoDetector:
             self.output_frame_size = (frame_width, frame_height)
             self.output_fps = fps if fps > 0 else 30.0
             
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            self.video_writer = cv2.VideoWriter(
-                self.output_video_path,
-                fourcc,
-                self.output_fps,
-                self.output_frame_size
-            )
+            codecs_to_try = [
+                ('avc1', 'H.264 (avc1)'),
+                ('H264', 'H.264'),
+                ('mp4v', 'MPEG-4'),
+                ('MJPG', 'Motion JPEG'),
+            ]
             
-            logger.info(f"视频写入器初始化成功: {self.output_video_path}, 分辨率={frame_width}x{frame_height}, FPS={self.output_fps}")
+            for codec_fourcc, codec_name in codecs_to_try:
+                try:
+                    self.output_video_path = self._get_output_video_path(codec_fourcc)
+                    
+                    fourcc = cv2.VideoWriter_fourcc(*codec_fourcc)
+                    self.video_writer = cv2.VideoWriter(
+                        self.output_video_path,
+                        fourcc,
+                        self.output_fps,
+                        self.output_frame_size
+                    )
+                    
+                    if self.video_writer and self.video_writer.isOpened():
+                        self._used_codec = codec_fourcc
+                        logger.info(f"视频写入器初始化成功: {self.output_video_path}, 编码={codec_name}, 分辨率={frame_width}x{frame_height}, FPS={self.output_fps}")
+                        return
+                    else:
+                        logger.warning(f"编码 {codec_name} 初始化失败，尝试下一个编码")
+                        if self.video_writer:
+                            self.video_writer.release()
+                            self.video_writer = None
+                except Exception as codec_error:
+                    logger.warning(f"编码 {codec_name} 初始化异常: {str(codec_error)}，尝试下一个编码")
+            
+            logger.error(f"所有可用编码都无法初始化视频写入器")
+            self.video_writer = None
+            
         except Exception as e:
             logger.error(f"初始化视频写入器失败: {str(e)}")
             self.video_writer = None

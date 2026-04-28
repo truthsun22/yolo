@@ -187,6 +187,24 @@ async def get_task_events(
     return events
 
 
+def _find_task_video(task_id: str) -> Optional[Dict[str, Any]]:
+    possible_extensions = ['.mp4', '.avi']
+    
+    for ext in possible_extensions:
+        video_filename = f"{task_id}_annotated{ext}"
+        video_path = os.path.join(settings.VIDEO_OUTPUT_DIR, video_filename)
+        if os.path.exists(video_path):
+            return {
+                "filename": video_filename,
+                "path": video_path,
+                "url": f"/api/videos/{video_filename}",
+                "exists": True,
+                "file_size": os.path.getsize(video_path)
+            }
+    
+    return None
+
+
 @router.get("/{task_id}/media", response_model=TaskMediaResponse)
 async def get_task_media(
     task_id: str,
@@ -199,25 +217,22 @@ async def get_task_media(
             detail=f"任务 {task_id} 不存在"
         )
     
-    video_filename = f"{task_id}_annotated.mp4"
-    video_path = os.path.join(settings.VIDEO_OUTPUT_DIR, video_filename)
-    video_url = f"/api/videos/{video_filename}"
-    
     video_info = None
-    if os.path.exists(video_path):
-        file_size = os.path.getsize(video_path)
+    video_data = _find_task_video(task_id)
+    
+    if video_data:
         video_info = VideoInfo(
             task_id=task_id,
-            video_path=video_path,
-            video_url=video_url,
+            video_path=video_data["path"],
+            video_url=video_data["url"],
             exists=True,
-            file_size=file_size
+            file_size=video_data["file_size"]
         )
     else:
         video_info = VideoInfo(
             task_id=task_id,
-            video_path=video_path,
-            video_url=video_url,
+            video_path=os.path.join(settings.VIDEO_OUTPUT_DIR, f"{task_id}_annotated.mp4"),
+            video_url=f"/api/videos/{task_id}_annotated.mp4",
             exists=False
         )
     
