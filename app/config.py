@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     DATA_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
     EVENTS_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "events")
     TASKS_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tasks")
+    VIDEO_OUTPUT_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "videos")
+    SCREENSHOTS_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "screenshots")
     
     class Config:
         env_file = ".env"
@@ -71,7 +73,9 @@ def ensure_directories():
         settings.LOG_DIR,
         settings.DATA_DIR,
         settings.EVENTS_DIR,
-        settings.TASKS_DIR
+        settings.TASKS_DIR,
+        settings.VIDEO_OUTPUT_DIR,
+        settings.SCREENSHOTS_DIR
     ]
     for directory in directories:
         if not os.path.exists(directory):

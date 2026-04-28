@@ -1,8 +1,11 @@
-from typing import Annotated, List, Optional
+import os
+from typing import Annotated, List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 from app.auth import get_current_active_user, User
+from app.config import settings
 from app.models import (
     TaskCreate, TaskResponse, TaskStatus, 
     Event, EventType
@@ -14,6 +17,29 @@ from app.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["任务管理"])
+
+
+class VideoInfo(BaseModel):
+    task_id: str
+    video_path: str
+    video_url: str
+    exists: bool
+    file_size: Optional[int] = None
+
+
+class ScreenshotInfo(BaseModel):
+    event_id: Optional[str] = None
+    frame_number: int
+    track_id: Optional[int] = None
+    screenshot_path: str
+    screenshot_url: str
+    timestamp: str
+
+
+class TaskMediaResponse(BaseModel):
+    task_id: str
+    video: Optional[VideoInfo] = None
+    screenshots: List[ScreenshotInfo] = []
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
@@ -159,3 +185,82 @@ async def get_task_events(
     event_manager = EventManager(task_id)
     events = event_manager.get_events(event_type=event_type, limit=limit)
     return events
+
+
+@router.get("/{task_id}/media", response_model=TaskMediaResponse)
+async def get_task_media(
+    task_id: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+    
+    video_filename = f"{task_id}_annotated.mp4"
+    video_path = os.path.join(settings.VIDEO_OUTPUT_DIR, video_filename)
+    video_url = f"/api/videos/{video_filename}"
+    
+    video_info = None
+    if os.path.exists(video_path):
+        file_size = os.path.getsize(video_path)
+        video_info = VideoInfo(
+            task_id=task_id,
+            video_path=video_path,
+            video_url=video_url,
+            exists=True,
+            file_size=file_size
+        )
+    else:
+        video_info = VideoInfo(
+            task_id=task_id,
+            video_path=video_path,
+            video_url=video_url,
+            exists=False
+        )
+    
+    screenshots: List[ScreenshotInfo] = []
+    
+    if os.path.exists(settings.SCREENSHOTS_DIR):
+        for filename in os.listdir(settings.SCREENSHOTS_DIR):
+            if filename.startswith(f"{task_id}_") and filename.endswith(".jpg"):
+                screenshot_path = os.path.join(settings.SCREENSHOTS_DIR, filename)
+                screenshot_url = f"/api/screenshots/{filename}"
+                
+                parts = filename.split("_")
+                frame_number = 0
+                track_id = None
+                
+                for i, part in enumerate(parts):
+                    if part.startswith("frame") and i + 1 < len(parts):
+                        try:
+                            frame_number = int(part[5:])
+                        except ValueError:
+                            pass
+                    if part.startswith("track") and i + 1 < len(parts):
+                        try:
+                            track_id = int(part[5:])
+                        except ValueError:
+                            pass
+                
+                stat = os.stat(screenshot_path)
+                from datetime import datetime
+                timestamp = datetime.fromtimestamp(stat.st_mtime).isoformat()
+                
+                screenshots.append(ScreenshotInfo(
+                    frame_number=frame_number,
+                    track_id=track_id,
+                    screenshot_path=screenshot_path,
+                    screenshot_url=screenshot_url,
+                    timestamp=timestamp
+                ))
+    
+    screenshots.sort(key=lambda x: x.frame_number)
+    
+    return TaskMediaResponse(
+        task_id=task_id,
+        video=video_info,
+        screenshots=screenshots
+    )
