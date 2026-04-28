@@ -3,9 +3,9 @@ import cv2
 import numpy as np
 import torch
 from datetime import datetime
+from functools import wraps
 from typing import Optional, Dict, Any, Callable
 from ultralytics import YOLO
-from ultralytics.nn.tasks import DetectionModel
 
 from app.config import settings
 from app.models import TaskResponse, TaskType, EventType, Event
@@ -47,8 +47,22 @@ class VideoDetector:
     def _load_model(self):
         try:
             logger.info(f"加载模型: {self.model_name}")
-            with torch.serialization.safe_globals([DetectionModel]):
+            
+            original_torch_load = torch.load
+            
+            @wraps(original_torch_load)
+            def patched_torch_load(*args, **kwargs):
+                if 'weights_only' not in kwargs or kwargs['weights_only']:
+                    kwargs['weights_only'] = False
+                return original_torch_load(*args, **kwargs)
+            
+            torch.load = patched_torch_load
+            
+            try:
                 self.model = YOLO(self.model_name)
+            finally:
+                torch.load = original_torch_load
+            
             logger.info(f"模型加载完成: {self.model_name}")
         except Exception as e:
             logger.error(f"加载模型失败: {str(e)}")
