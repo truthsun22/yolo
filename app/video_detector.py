@@ -1,10 +1,11 @@
 import asyncio
 import cv2
 import numpy as np
+import os
 import torch
 from datetime import datetime
 from functools import wraps
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List, Tuple
 from ultralytics import YOLO
 
 from app.config import settings
@@ -42,6 +43,97 @@ class VideoDetector:
         self._is_running = False
         self._should_stop = False
         
+        self.video_writer: Optional[cv2.VideoWriter] = None
+        self.output_video_path = self._get_output_video_path()
+        self.output_fps: float = 30.0
+        self.output_frame_size: Optional[Tuple[int, int]] = None
+        
+        self.screenshot_count = 0
+        self.event_screenshots: List[Dict[str, Any]] = []
+        
+        self.class_names = {
+            0: 'person',
+            1: 'bicycle',
+            2: 'car',
+            3: 'motorcycle',
+            4: 'airplane',
+            5: 'bus',
+            6: 'train',
+            7: 'truck',
+            8: 'boat',
+            9: 'traffic light',
+            10: 'fire hydrant',
+            11: 'stop sign',
+            12: 'parking meter',
+            13: 'bench',
+            14: 'bird',
+            15: 'cat',
+            16: 'dog',
+            17: 'horse',
+            18: 'sheep',
+            19: 'cow',
+            20: 'elephant',
+            21: 'bear',
+            22: 'zebra',
+            23: 'giraffe',
+            24: 'backpack',
+            25: 'umbrella',
+            26: 'handbag',
+            27: 'tie',
+            28: 'suitcase',
+            29: 'frisbee',
+            30: 'skis',
+            31: 'snowboard',
+            32: 'sports ball',
+            33: 'kite',
+            34: 'baseball bat',
+            35: 'baseball glove',
+            36: 'skateboard',
+            37: 'surfboard',
+            38: 'tennis racket',
+            39: 'bottle',
+            40: 'wine glass',
+            41: 'cup',
+            42: 'fork',
+            43: 'knife',
+            44: 'spoon',
+            45: 'bowl',
+            46: 'banana',
+            47: 'apple',
+            48: 'sandwich',
+            49: 'orange',
+            50: 'broccoli',
+            51: 'carrot',
+            52: 'hot dog',
+            53: 'pizza',
+            54: 'donut',
+            55: 'cake',
+            56: 'chair',
+            57: 'couch',
+            58: 'potted plant',
+            59: 'bed',
+            60: 'dining table',
+            61: 'toilet',
+            62: 'tv',
+            63: 'laptop',
+            64: 'mouse',
+            65: 'remote',
+            66: 'keyboard',
+            67: 'cell phone',
+            68: 'microwave',
+            69: 'oven',
+            70: 'toaster',
+            71: 'sink',
+            72: 'refrigerator',
+            73: 'book',
+            74: 'clock',
+            75: 'vase',
+            76: 'scissors',
+            77: 'teddy bear',
+            78: 'hair drier',
+            79: 'toothbrush'
+        }
+        
         logger.info(f"初始化视频检测器: 任务ID={self.task_id}, 模型={self.model_name}")
     
     def _load_model(self):
@@ -77,6 +169,166 @@ class VideoDetector:
     def _should_skip_frame(self, frame_count: int) -> bool:
         return frame_count % (self.frame_skip + 1) != 0
     
+    def _get_output_video_path(self) -> str:
+        return os.path.join(settings.VIDEO_OUTPUT_DIR, f"{self.task_id}_annotated.mp4")
+    
+    def _get_screenshot_path(self, frame_number: int, track_id: Optional[int] = None) -> str:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if track_id is not None:
+            filename = f"{self.task_id}_frame{frame_number}_track{track_id}_{timestamp}.jpg"
+        else:
+            filename = f"{self.task_id}_frame{frame_number}_{timestamp}.jpg"
+        return os.path.join(settings.SCREENSHOTS_DIR, filename)
+    
+    def _init_video_writer(self, frame_width: int, frame_height: int, fps: float):
+        try:
+            if self.video_writer is not None:
+                self.video_writer.release()
+            
+            self.output_frame_size = (frame_width, frame_height)
+            self.output_fps = fps if fps > 0 else 30.0
+            
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.video_writer = cv2.VideoWriter(
+                self.output_video_path,
+                fourcc,
+                self.output_fps,
+                self.output_frame_size
+            )
+            
+            logger.info(f"视频写入器初始化成功: {self.output_video_path}, 分辨率={frame_width}x{frame_height}, FPS={self.output_fps}")
+        except Exception as e:
+            logger.error(f"初始化视频写入器失败: {str(e)}")
+            self.video_writer = None
+    
+    def _get_class_name(self, class_id: int) -> str:
+        return self.class_names.get(class_id, f"class_{class_id}")
+    
+    def _draw_detections(self, frame: np.ndarray, results, frame_number: int) -> np.ndarray:
+        annotated_frame = frame.copy()
+        
+        for result in results:
+            boxes = result.boxes
+            if boxes is None:
+                continue
+            
+            for box in boxes:
+                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])
+                
+                if confidence < self.confidence_threshold:
+                    continue
+                
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                
+                track_id = None
+                if box.id is not None:
+                    track_id = int(box.id[0])
+                
+                color = self._get_color_for_class(class_id, track_id)
+                
+                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                
+                class_name = self._get_class_name(class_id)
+                if track_id is not None:
+                    label = f"{class_name} #{track_id} ({confidence:.2f})"
+                else:
+                    label = f"{class_name} ({confidence:.2f})"
+                
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6
+                font_thickness = 2
+                
+                (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, font_thickness)
+                
+                cv2.rectangle(
+                    annotated_frame,
+                    (x1, y1 - text_height - 10),
+                    (x1 + text_width + 10, y1),
+                    color,
+                    -1
+                )
+                
+                text_color = (255, 255, 255) if self._is_dark_color(color) else (0, 0, 0)
+                cv2.putText(
+                    annotated_frame,
+                    label,
+                    (x1 + 5, y1 - 5),
+                    font,
+                    font_scale,
+                    text_color,
+                    font_thickness
+                )
+        
+        cv2.putText(
+            annotated_frame,
+            f"Frame: {frame_number}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 255, 255),
+            2
+        )
+        
+        task_type_text = "追踪" if self.task.task_type == TaskType.PEDESTRIAN_TRACKING else "检测"
+        cv2.putText(
+            annotated_frame,
+            f"任务类型: {task_type_text}",
+            (10, 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 255, 255),
+            2
+        )
+        
+        return annotated_frame
+    
+    def _get_color_for_class(self, class_id: int, track_id: Optional[int] = None) -> Tuple[int, int, int]:
+        colors = [
+            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255),
+            (0, 255, 255), (128, 0, 0), (0, 128, 0), (0, 0, 128), (128, 128, 0),
+            (128, 0, 128), (0, 128, 128), (255, 128, 0), (255, 0, 128), (128, 255, 0),
+            (0, 128, 255), (255, 192, 203), (165, 42, 42), (0, 100, 0), (75, 0, 130)
+        ]
+        
+        if track_id is not None:
+            return colors[track_id % len(colors)]
+        
+        return colors[class_id % len(colors)]
+    
+    def _is_dark_color(self, color: Tuple[int, int, int]) -> bool:
+        brightness = (color[2] * 299 + color[1] * 587 + color[0] * 114) / 1000
+        return brightness < 128
+    
+    def _save_event_screenshot(self, frame: np.ndarray, event: Event) -> Optional[str]:
+        try:
+            screenshot_path = self._get_screenshot_path(event.frame_number, event.track_id)
+            
+            if cv2.imwrite(screenshot_path, frame):
+                self.screenshot_count += 1
+                self.event_screenshots.append({
+                    "event_id": event.id,
+                    "frame_number": event.frame_number,
+                    "track_id": event.track_id,
+                    "screenshot_path": screenshot_path,
+                    "timestamp": datetime.now().isoformat()
+                })
+                logger.info(f"事件截图已保存: {screenshot_path}")
+                return screenshot_path
+            else:
+                logger.error(f"保存事件截图失败: {screenshot_path}")
+                return None
+        except Exception as e:
+            logger.error(f"保存事件截图时出错: {str(e)}")
+            return None
+    
+    def _close_video_writer(self):
+        if self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+            logger.info(f"视频写入器已关闭，输出文件: {self.output_video_path}")
+    
     async def run(self) -> bool:
         self._is_running = True
         self._should_stop = False
@@ -98,8 +350,12 @@ class VideoDetector:
             
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            logger.info(f"视频信息: 总帧数={total_frames}, FPS={fps}")
+            logger.info(f"视频信息: 总帧数={total_frames}, FPS={fps}, 分辨率={frame_width}x{frame_height}")
+            
+            self._init_video_writer(frame_width, frame_height, fps)
             
             frame_count = 0
             processed_frames = 0
@@ -121,6 +377,11 @@ class VideoDetector:
                 
                 results = await self._process_frame(frame, frame_count)
                 
+                annotated_frame = self._draw_detections(frame, results, frame_count)
+                
+                if self.video_writer is not None:
+                    self.video_writer.write(annotated_frame)
+                
                 if results and len(results) > 0:
                     frame_detections = self._count_people_detections(results)
                     detections_count += frame_detections
@@ -129,7 +390,7 @@ class VideoDetector:
                         self.on_detection(self.task_id, frame_detections)
                     
                     if self.enable_event_generation:
-                        await self._generate_events(results, frame_count)
+                        await self._generate_events(results, frame_count, annotated_frame)
                 
                 if total_frames > 0:
                     progress = (frame_count / total_frames) * 100
@@ -148,9 +409,10 @@ class VideoDetector:
                 await asyncio.sleep(0)
             
             cap.release()
+            self._close_video_writer()
             self._is_running = False
             
-            logger.info(f"视频处理完成: 总帧数={frame_count}, 处理帧数={processed_frames}, 检测数量={detections_count}")
+            logger.info(f"视频处理完成: 总帧数={frame_count}, 处理帧数={processed_frames}, 检测数量={detections_count}, 截图数量={self.screenshot_count}")
             
             EventManager.clear_task_cache(self.task_id)
             
@@ -158,11 +420,13 @@ class VideoDetector:
             
         except asyncio.CancelledError:
             logger.info(f"任务 {self.task_id} 被取消")
+            self._close_video_writer()
             self._is_running = False
             return False
         except Exception as e:
             error_msg = f"视频处理错误: {str(e)}"
             logger.error(error_msg)
+            self._close_video_writer()
             if self.on_error:
                 self.on_error(self.task_id, error_msg)
             self._is_running = False
@@ -206,7 +470,7 @@ class VideoDetector:
                         count += 1
         return count
     
-    async def _generate_events(self, results, frame_number: int):
+    async def _generate_events(self, results, frame_number: int, annotated_frame: Optional[np.ndarray] = None):
         try:
             for result in results:
                 boxes = result.boxes
@@ -257,6 +521,11 @@ class VideoDetector:
                             f"置信度={confidence:.2f}, "
                             f"追踪ID={track_id}"
                         )
+                        
+                        if annotated_frame is not None:
+                            screenshot_path = self._save_event_screenshot(annotated_frame, event)
+                            if screenshot_path:
+                                logger.info(f"事件截图已保存: {screenshot_path}")
                         
         except Exception as e:
             logger.error(f"生成事件时出错: {str(e)}")

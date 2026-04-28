@@ -60,6 +60,9 @@ app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(events.router)
 
+app.mount("/api/videos", StaticFiles(directory=settings.VIDEO_OUTPUT_DIR), name="videos")
+app.mount("/api/screenshots", StaticFiles(directory=settings.SCREENSHOTS_DIR), name="screenshots")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
