@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_TASKS: int = 5
     TASK_TIMEOUT_SECONDS: int = 3600
     
+    # 帧缓冲配置
+    FRAME_BUFFER_SIZE: int = 30
+    FRAME_DROP_STRATEGY: str = "drop_oldest"
+    
+    # 推理引擎配置
+    INFERENCE_BATCH_SIZE: int = 4
+    INFERENCE_MAX_QUEUE: int = 100
+    INFERENCE_BATCH_TIMEOUT: int = 100
+    
+    # 设备配置
+    FORCE_CPU: bool = False
+    
     # 数据存储路径
     DATA_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
     EVENTS_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "events")
