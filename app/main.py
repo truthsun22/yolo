@@ -10,6 +10,9 @@ from fastapi.templating import Jinja2Templates
 from app.config import settings, ensure_directories
 from app.logger import setup_logging, get_logger
 from app.routers import auth, tasks, events
+from app.device_manager import device_manager
+from app.video_source_manager import video_source_manager
+from app.inference_engine import inference_engine
 
 
 logger = get_logger(__name__)
@@ -24,11 +27,38 @@ async def lifespan(app: FastAPI):
     logger.info(f"{settings.APP_NAME} 启动中...")
     logger.info(f"版本: {settings.APP_VERSION}")
     logger.info(f"调试模式: {settings.DEBUG}")
+    
+    logger.info(f"设备信息:")
+    for device in device_manager.get_available_devices():
+        logger.info(f"  - {device.device_type.value}: {device.name}")
+    logger.info(f"首选设备: {device_manager.get_device_string(force_cpu=settings.FORCE_CPU)}")
+    
+    if not settings.FORCE_CPU and device_manager.is_gpu_available():
+        logger.info("GPU加速已启用")
+    else:
+        logger.info("使用CPU模式运行")
+    
+    inference_engine.start()
+    logger.info(f"推理引擎已启动: 批处理大小={inference_engine._batch_size}")
+    
     logger.info(f"=" * 50)
     
     yield
     
+    logger.info(f"=" * 50)
+    logger.info(f"{settings.APP_NAME} 关闭中...")
+    
+    inference_engine.stop()
+    logger.info("推理引擎已停止")
+    
+    video_source_manager.stop_all()
+    logger.info("视频源管理器已停止")
+    
+    device_manager.shutdown()
+    logger.info("设备管理器已关闭")
+    
     logger.info(f"{settings.APP_NAME} 已关闭")
+    logger.info(f"=" * 50)
 
 
 app = FastAPI(
