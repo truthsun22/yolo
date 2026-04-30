@@ -371,11 +371,15 @@ class VideoDetector:
             await self._cleanup()
             return False
         except Exception as e:
+            import traceback
             error_msg = f"视频处理错误: {str(e)}"
             logger.error(error_msg)
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
             await self._cleanup()
             if self.on_error:
-                self.on_error(self.task_id, error_msg)
+                # 界面显示简略错误信息
+                simple_error_msg = "视频处理过程中出现错误，请查看日志了解详情"
+                self.on_error(self.task_id, simple_error_msg)
             return False
     
     def _on_frame_received(self, video_frame: VideoFrame):
@@ -435,7 +439,9 @@ class VideoDetector:
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
+                import traceback
                 logger.error(f"消费者循环错误: {str(e)}")
+                logger.error(f"错误堆栈: {traceback.format_exc()}")
         
         await self._result_buffer.close()
         logger.info(f"消费者循环结束: task={self.task_id}")
@@ -458,7 +464,9 @@ class VideoDetector:
                     break
                 continue
             except Exception as e:
+                import traceback
                 logger.error(f"写入器循环错误: {str(e)}")
+                logger.error(f"错误堆栈: {traceback.format_exc()}")
         
         self._close_video_writer()
         logger.info(f"写入器循环结束: task={self.task_id}")
@@ -470,7 +478,12 @@ class VideoDetector:
             
             model = self.model_handle.model
             
-            if self.task.task_type == TaskType.PEDESTRIAN_TRACKING:
+            # 处理task_type可能是字符串的情况
+            task_type = self.task.task_type
+            if hasattr(task_type, 'value'):
+                task_type = task_type.value
+            
+            if task_type == TaskType.PEDESTRIAN_TRACKING.value:
                 results = model.track(
                     frame,
                     conf=self.confidence_threshold,
@@ -489,7 +502,9 @@ class VideoDetector:
             return results
             
         except Exception as e:
+            import traceback
             logger.error(f"处理帧 {frame_count} 时出错: {str(e)}")
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
             return []
     
     def _count_people_detections(self, results) -> int:
@@ -536,6 +551,11 @@ class VideoDetector:
                     
                     event_type = self._get_event_type()
                     
+                    # 处理task_type可能是字符串的情况
+                    task_type_value = self.task.task_type
+                    if hasattr(task_type_value, 'value'):
+                        task_type_value = task_type_value.value
+                    
                     event = self.event_manager.create_event(
                         event_type=event_type,
                         frame_number=frame_number,
@@ -543,7 +563,7 @@ class VideoDetector:
                         bounding_box=bounding_box,
                         track_id=track_id,
                         metadata={
-                            "task_type": self.task.task_type.value,
+                            "task_type": task_type_value,
                             "model_name": self.model_name
                         }
                     )
@@ -566,12 +586,19 @@ class VideoDetector:
                                 logger.info(f"事件截图已保存: {screenshot_path}")
                         
         except Exception as e:
+            import traceback
             logger.error(f"生成事件时出错: {str(e)}")
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
         
         return events
     
     def _get_event_type(self) -> EventType:
-        if self.task.task_type == TaskType.PEDESTRIAN_TRACKING:
+        # 处理task_type可能是字符串的情况
+        task_type = self.task.task_type
+        if hasattr(task_type, 'value'):
+            task_type = task_type.value
+        
+        if task_type == TaskType.PEDESTRIAN_TRACKING.value:
             return EventType.PEDESTRIAN_TRACKED
         return EventType.PEDESTRIAN_DETECTED
     
