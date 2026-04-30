@@ -42,7 +42,16 @@ class FrameBuffer(Generic[T]):
         name: str = "default"
     ):
         self.max_size = max_size
-        self.drop_strategy = drop_strategy
+        
+        if isinstance(drop_strategy, str):
+            try:
+                self.drop_strategy = DropStrategy(drop_strategy.upper())
+            except ValueError:
+                logger.warning(f"无效的丢帧策略: {drop_strategy}，使用默认策略")
+                self.drop_strategy = DropStrategy.DROP_OLDEST
+        else:
+            self.drop_strategy = drop_strategy
+            
         self.name = name
         
         self._buffer: deque = deque()
@@ -56,7 +65,7 @@ class FrameBuffer(Generic[T]):
         self._wait_times: List[float] = []
         self._max_wait_samples = 100
         
-        logger.info(f"帧缓冲初始化: {name}, 最大容量={max_size}, 丢帧策略={drop_strategy.value}")
+        logger.info(f"帧缓冲初始化: {name}, 最大容量={max_size}, 丢帧策略={self.drop_strategy.value}")
     
     def put(self, item: T, timeout: Optional[float] = None) -> bool:
         if self._is_closed:
@@ -201,7 +210,16 @@ class AsyncFrameBuffer(Generic[T]):
         name: str = "default"
     ):
         self.max_size = max_size
-        self.drop_strategy = drop_strategy
+        
+        if isinstance(drop_strategy, str):
+            try:
+                self.drop_strategy = DropStrategy(drop_strategy.upper())
+            except ValueError:
+                logger.warning(f"无效的丢帧策略: {drop_strategy}，使用默认策略")
+                self.drop_strategy = DropStrategy.DROP_OLDEST
+        else:
+            self.drop_strategy = drop_strategy
+            
         self.name = name
         
         self._buffer: deque = deque()
@@ -216,7 +234,7 @@ class AsyncFrameBuffer(Generic[T]):
         self._wait_times: List[float] = []
         self._max_wait_samples = 100
         
-        logger.info(f"异步帧缓冲初始化: {name}, 最大容量={max_size}, 丢帧策略={drop_strategy.value}")
+        logger.info(f"异步帧缓冲初始化: {name}, 最大容量={max_size}, 丢帧策略={self.drop_strategy.value}")
     
     async def put(self, item: T, timeout: Optional[float] = None) -> bool:
         if self._is_closed:
